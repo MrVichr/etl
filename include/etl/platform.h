@@ -211,6 +211,14 @@ SOFTWARE.
   #define ETL_CONSTINIT
 #endif
 
+#if ETL_USING_STL || defined(ETL_USE_STL_ALGORITHMS)
+  #define ETL_USING_STL_ALGORITHMS 1
+  #define ETL_NOT_USING_STL_ALGORITHMS 0
+#else
+  #define ETL_USING_STL_ALGORITHMS 0
+  #define ETL_NOT_USING_STL_ALGORITHMS 1
+#endif
+
 // Sort out namespaces for STL/No STL options.
 #include "private/choose_namespace.h"
 
