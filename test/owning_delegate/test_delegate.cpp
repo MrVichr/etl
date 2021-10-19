@@ -28,16 +28,27 @@ SOFTWARE.
 
 #include "unit_test_framework.h"
 
+#define ETL_DEBUG //need ETL_ASSERT to work
+#define ETL_THROW_EXCEPTIONS
+
 #include "etl/delegate.h"
 #include "etl/vector.h"
 
-namespace
-{
+#define CONSTEXPR_NOTLAMBDA
+
+//namespace
+//{
   //*****************************************************************************
   const int VALUE1 = 1;
   const int VALUE2 = 2;
   bool function_called = false;
   bool parameter_correct = false;
+
+  void reset()
+  {
+    function_called = false;
+    parameter_correct = false;
+  }
 
   //*****************************************************************************
   // Test data structure.
@@ -64,7 +75,7 @@ namespace
   //*****************************************************************************
   // The free function taking no parameters.
   //*****************************************************************************
-  void free_void()
+  void free_void(void)
   {
     function_called = true;
   }
@@ -211,24 +222,98 @@ namespace
 
   Test test_static;
   const Test const_test_static;
-}
+//}
 
-namespace
-{
+//namespace
+//{
   //*****************************************************************************
   // Initialises the test results.
   //*****************************************************************************
-  struct SetupFixture
+  /*struct SetupFixture
   {
     SetupFixture()
     {
       function_called   = false;
       parameter_correct = false;
     }
-  };
+  };*/
 
-  SUITE(test_delegate)
-  {
+  //SUITE(test_delegate)
+  //{
+    struct SetupFixture {
+      void test_is_valid_false();
+      void test_is_valid_false2();
+      void test_is_valid_true();
+      void test_free_void();
+      void test_free_void_constexpr();
+      void test_free_int();
+      void test_free_int_constexpr();
+      void test_free_reference();
+      void test_free_reference_constexpr();
+      void test_free_moveableonly();
+      void test_free_moveableonly_constexpr();
+      void test_lambda_int();
+      void test_lambda_int_create();
+      void test_member_operator_void();
+      void test_member_operator_void_create();
+      void test_member_operator_void_create_constexpr();
+      void test_member_operator_void_const();
+      void test_member_operator_void_compile_time();
+      void test_member_operator_void_compile_time_constexpr();
+      void test_member_operator_void_compile_time_const();
+      void test_member_operator_void_compile_time_const_constexpr();
+      void test_assignment_member_operator_void();
+      void test_member_void();
+      void test_member_void_constexpr();
+      void test_member_void_const();
+      void test_member_void_const_constexpr();
+      void test_member_int();
+      void test_member_int_constexpr();
+      void test_member_int_const();
+      void test_member_int_const_constexpr();
+      void test_member_reference();
+      void test_member_reference_constexpr();
+      void test_member_reference_const();
+      void test_member_reference_const_constexpr();
+      void test_member_moveableonly();
+      void test_member_moveableonly_constexpr();
+      void test_member_static();
+      void test_member_static_constexpr();
+      void test_member_void_compile_time();
+      void test_member_void_compile_time_constexpr();
+      void test_member_void_const_compile_time();
+      void test_member_void_const_compile_time_constexpr();
+      void test_member_int_compile_time();
+      void test_member_int_compile_time_constexpr();
+      void test_member_int_const_compile_time();
+      void test_member_int_const_compile_time_constexpr();
+      void test_member_reference_compile_time();
+      void test_member_reference_compile_time_constexpr();
+      void test_member_reference_const_compile_time();
+      void test_member_reference_const_compile_time_constexpr();
+      void test_set_free_int();
+      void test_set_lambda_int();
+      void test_set_member_reference();
+      void test_set_const_member_reference();
+      void test_set_member_reference_compile_time();
+      void test_set_member_reference_const_compile_time();
+      void test_copy_construct();
+      void test_copy_construct_constexpr();
+      void test_assignment();
+      void test_delegate_equal();
+      void test_delegate_not_equal();
+      void test_issue_418();
+      void test_call_or_run_time_normal();
+      void test_call_or_run_time_alternative();
+      void test_call_or_compile_time_alternative();
+      void test_call_or_delegate_alternative();
+      void test_call_if_and_valid();
+      void test_call_if_and_not_valid();
+      void test_call_if_and_valid_returning_void();
+      void test_call_if_and_not_valid_returning_void();
+
+    };
+
     //*************************************************************************
     TEST_FIXTURE(SetupFixture, test_is_valid_false)
     {
@@ -240,10 +325,10 @@ namespace
       CHECK_THROW(d(), etl::delegate_uninitialised);
     }
 
-    SUITE(test_constexpr_delegate)
-    {
+    //SUITE(test_constexpr_delegate)
+    //{
       //*************************************************************************
-      TEST_FIXTURE(SetupFixture, test_is_valid_false)
+      TEST_FIXTURE(SetupFixture, test_is_valid_false2)
       {
         constexpr etl::delegate<void(void)> d;
 
@@ -252,7 +337,7 @@ namespace
 
         CHECK_THROW(d(), etl::delegate_uninitialised);
       }
-    }
+    //}
 
     //*************************************************************************
     TEST_FIXTURE(SetupFixture, test_is_valid_true)
@@ -277,7 +362,7 @@ namespace
     //*************************************************************************
     TEST_FIXTURE(SetupFixture, test_free_void_constexpr)
     {
-      constexpr auto d = etl::delegate<void(void)>::create<free_void>();
+      constexpr auto d = etl::delegate<void(void)>::create<&free_void>();
 
       d();
 
@@ -415,7 +500,7 @@ namespace
     {
       static Test test;
 
-      constexpr auto d = etl::delegate<void(void)>::create(test);
+      CONSTEXPR_NOTLAMBDA auto d = etl::delegate<void(void)>::create(test);
 
       d();
 
@@ -434,7 +519,7 @@ namespace
       CHECK(function_called);
     }
 
-#if !defined(ETL_COMPILER_GCC)
+#if !defined(ETL_COMPILER_GCC) || (__GNUC__>=8)
     //*************************************************************************
     TEST_FIXTURE(SetupFixture, test_member_operator_void_compile_time)
     {
@@ -708,7 +793,7 @@ namespace
       CHECK(parameter_correct);
     }
 
-#if !(defined(ETL_COMPILER_GCC) && (__GNUC__ <= 5))
+//#if !(defined(ETL_COMPILER_GCC) && (__GNUC__ <= 5))
     //*************************************************************************
     TEST_FIXTURE(SetupFixture, test_member_void_compile_time)
     {
@@ -940,7 +1025,7 @@ namespace
       CHECK(function_called);
       CHECK(parameter_correct);
     }
-#endif
+//#endif
 
     //*************************************************************************
     TEST_FIXTURE(SetupFixture, test_copy_construct)
@@ -1104,5 +1189,152 @@ namespace
       CHECK(!function_called);
       CHECK(!parameter_correct);
     }
-  };
+  //};
+//}
+
+size_t test_delegate()
+{
+  SetupFixture sf;
+  sf.test_is_valid_false();
+  reset();
+  sf.test_is_valid_false2();
+  reset();
+  sf.test_is_valid_true();
+  reset();
+  sf.test_free_void();
+  reset();
+  sf.test_free_void_constexpr();
+  reset();
+  sf.test_free_int();
+  reset();
+  sf.test_free_int_constexpr();
+  reset();
+  sf.test_free_reference();
+  reset();
+  sf.test_free_reference_constexpr();
+  reset();
+  sf.test_free_moveableonly();
+  reset();
+  sf.test_free_moveableonly_constexpr();
+  reset();
+  sf.test_lambda_int();
+  reset();
+  sf.test_lambda_int_create();
+  reset();
+  sf.test_member_operator_void();
+  reset();
+  sf.test_member_operator_void_create();
+  reset();
+  sf.test_member_operator_void_create_constexpr();
+  reset();
+  sf.test_member_operator_void_const();
+  reset();
+  sf.test_member_operator_void_compile_time();
+  reset();
+  sf.test_member_operator_void_compile_time_constexpr();
+  reset();
+  sf.test_member_operator_void_compile_time_const();
+  reset();
+  sf.test_member_operator_void_compile_time_const_constexpr();
+  reset();
+  sf.test_assignment_member_operator_void();
+  reset();
+  sf.test_member_void();
+  reset();
+  sf.test_member_void_constexpr();
+  reset();
+  sf.test_member_void_const();
+  reset();
+  sf.test_member_void_const_constexpr();
+  reset();
+  sf.test_member_int();
+  reset();
+  sf.test_member_int_constexpr();
+  reset();
+  sf.test_member_int_const();
+  reset();
+  sf.test_member_int_const_constexpr();
+  reset();
+  sf.test_member_reference();
+  reset();
+  sf.test_member_reference_constexpr();
+  reset();
+  sf.test_member_reference_const();
+  reset();
+  sf.test_member_reference_const_constexpr();
+  reset();
+  sf.test_member_moveableonly();
+  reset();
+  sf.test_member_moveableonly_constexpr();
+  reset();
+  sf.test_member_static();
+  reset();
+  sf.test_member_static_constexpr();
+  reset();
+  sf.test_member_void_compile_time();
+  reset();
+  sf.test_member_void_compile_time_constexpr();
+  reset();
+  sf.test_member_void_const_compile_time();
+  reset();
+  sf.test_member_void_const_compile_time_constexpr();
+  reset();
+  sf.test_member_int_compile_time();
+  reset();
+  sf.test_member_int_compile_time_constexpr();
+  reset();
+  sf.test_member_int_const_compile_time();
+  reset();
+  sf.test_member_int_const_compile_time_constexpr();
+  reset();
+  sf.test_member_reference_compile_time();
+  reset();
+  sf.test_member_reference_compile_time_constexpr();
+  reset();
+  sf.test_member_reference_const_compile_time();
+  reset();
+  sf.test_member_reference_const_compile_time_constexpr();
+  reset();
+  sf.test_set_free_int();
+  reset();
+  sf.test_set_lambda_int();
+  reset();
+  sf.test_set_member_reference();
+  reset();
+  sf.test_set_const_member_reference();
+  reset();
+  sf.test_set_member_reference_compile_time();
+  reset();
+  sf.test_set_member_reference_const_compile_time();
+  reset();
+  sf.test_copy_construct();
+  reset();
+  sf.test_copy_construct_constexpr();
+  reset();
+  sf.test_assignment();
+  reset();
+  sf.test_delegate_equal();
+  reset();
+  sf.test_delegate_not_equal();
+  reset();
+  sf.test_issue_418();
+  reset();
+  sf.test_call_or_run_time_normal();
+  reset();
+  sf.test_call_or_run_time_alternative();
+  reset();
+  sf.test_call_or_compile_time_alternative();
+  reset();
+  sf.test_call_or_delegate_alternative();
+  reset();
+  sf.test_call_if_and_valid();
+  reset();
+  sf.test_call_if_and_not_valid();
+  reset();
+  sf.test_call_if_and_valid_returning_void();
+  reset();
+  sf.test_call_if_and_not_valid_returning_void();
+  reset();
+
+  return sizeof(Test);
 }
