@@ -34,6 +34,7 @@ public:
   void test_owning();
   void test_set();
   void test_constexpr();
+  void test_wrongtype();
 
   int gnuc;
 };

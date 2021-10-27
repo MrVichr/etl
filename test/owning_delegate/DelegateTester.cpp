@@ -30,6 +30,7 @@ DelegateTester::DelegateTester()
   test_owning();
   test_set();
   test_constexpr();
+  test_wrongtype();
 
   setup();
   clearstack();
@@ -81,7 +82,7 @@ void DelegateTester::lambda_ref_p1()
 
 void DelegateTester::not_equal()
 {
-  auto lamb1a=[a=5, b=6] (int p) mutable { a=p; };
+  auto lamb1a=[a=5, b=6] (int p) mutable { a=p; (void)b; };
   /*auto lamb1b=lamb1a;
   assert(lamb1a==lamb1b);
   lamb1b(7);
@@ -92,12 +93,12 @@ void DelegateTester::not_equal()
   /* lambdas don't support ==, so why should we
   d1(10);
   assert(d1==d2); fails */
-  d2=[a=5, b=6] (int p) mutable { a=p; };
+  d2=[a=5, b=6] (int p) mutable { a=p; (void)b; };
   assert(d1!=d2);
 
   auto lamb2=[a=1] (int p) mutable { a=p; };
-  d1=[a=5, b=6] (int p) mutable { a=p; };
-  d2=[a=7, b=8] (int p) mutable { a=p; };
+  d1=[a=5, b=6] (int p) mutable { a=p; (void)b; };
+  d2=[a=7, b=8] (int p) mutable { a=p; (void)b; };
   d1=lamb2;
   d1(20);
   d2=lamb2;
@@ -118,26 +119,27 @@ void DelegateTester::test_align()
 
   etl::delegate<void(void)> t1=[x1] () mutable { x1++; };
   t1();
-  assert(alignof(t1)>=alignof(x1));
+  assert(alignof(typeof(t1))>=alignof(typeof(x1)));
 
   etl::delegate<void(void)> t4=[x4] () mutable { x4++; };
   t4();
-  assert(alignof(t4)>=alignof(x4));
+  assert(alignof(typeof(t4))>=alignof(typeof(x4)));
 
   etl::delegate<void(void)> t8=[x8] () mutable { x8+=1; };
   t8();
-  assert(alignof(t8)>=alignof(x8));
+  assert(alignof(typeof(t8))>=alignof(typeof(x8)));
 
   auto l16=[x16] () mutable { x16.data+=1; };
   //etl::delegate<void(void), 8, 8> t16=l16; //-> static_assert(..., "Insufficient alignment of delegate")
   etl::delegate<void(void), 8, 16> t16=l16;
   t16();
-  size_t sl16=sizeof(l16);
-  size_t sx16=sizeof(x16);
-  size_t al16=alignof(l16);
-  size_t at16=alignof(t16);
-  size_t ax16=alignof(x16);
-  assert(alignof(t16)>=alignof(x16));
+  size_t sl16=sizeof(typeof(l16));
+  size_t sx16=sizeof(typeof(x16));
+  size_t al16=alignof(typeof(l16));
+  size_t at16=alignof(typeof(t16));
+  size_t ax16=alignof(typeof(x16));
+  (void)sl16; (void)sx16; (void)al16; (void)at16; (void)ax16;
+  assert(alignof(typeof(t16))>=alignof(typeof(x16)));
 
   /*etl::delegate<void(void)> t32=[alignas(32) x32] () mutable { x32+=1; };
   t32();
@@ -270,6 +272,29 @@ void DelegateTester::test_constexpr()
   res=dcimc(5,6);
   assert(res==21+5+6);
 #endif
+}
+
+void DelegateTester::test_wrongtype()
+{
+  etl::delegate<void(void)> dv_v1;
+  etl::delegate<void(void)> dv_v2;
+  etl::delegate<void(int)> dv_i;
+  assert(dv_v1==dv_v2);
+  //assert(dv_v1!=dv_i);             FAIL
+  dv_v2=[] () { };
+  assert(dv_v1!=dv_v2);
+  assert(dv_v2!=dv_v1);
+  //dv_v2=[] (int x) { (void)x; };   FAIL
+  dv_i=[] (int x) { (void)x; };
+  //dv_v2=dv_i;                      FAIL
+  //assert(dv_v2!=dv_i);             FAIL
+  //assert(dv_i!=dv_v2);             FAIL
+  etl::delegate<void(void)> dv_v3(dv_v2);
+  assert(dv_v2==dv_v3);
+  assert(dv_v3==dv_v2);
+  //etl::delegate<void(void)> dv_v4(dv_i);  FAIL
+  //assert(dv_i==dv_v4);
+  //assert(dv_v4==dv_i);
 }
 
 void DelegateTester::setup()

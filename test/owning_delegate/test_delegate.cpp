@@ -34,7 +34,7 @@ SOFTWARE.
 #include "etl/delegate.h"
 #include "etl/vector.h"
 
-#define CONSTEXPR_NOTLAMBDA
+#define CONSTEXPR_NOTLAMBDA //constexpr
 
 //namespace
 //{

@@ -118,13 +118,14 @@ namespace etl
     //*************************************************************************
     // Copy constructor.
     //*************************************************************************
-    template <size_t STORAGEOF_OTHER, size_t ALIGNOF_OTHER>
-    ETL_CONSTEXPR14 delegate(const delegate<TReturn(TParams...), STORAGEOF_OTHER, ALIGNOF_OTHER> &other)
-    //ETL_CONSTEXPR14 delegate(const delegate<TReturn(TParams...), ADDITIONAL_STORAGE_SIZE, REQUIRED_ALIGNMENT> &other)
-      : invocation(nullptr, nullptr)
+    template <typename OTHER_RETURN, typename... OTHER_PARAMS, size_t STORAGEOF_OTHER, size_t ALIGNOF_OTHER>
+    ETL_CONSTEXPR14 delegate(const delegate<OTHER_RETURN(OTHER_PARAMS...), STORAGEOF_OTHER, ALIGNOF_OTHER> &other)
+      : invocation(memory_helper<sizeof(other.invocation.storage), sizeof(invocation.storage)-sizeof(other.invocation.storage)> (other.invocation.storage.opaque),
+                   (const vmt_t *)other.invocation.vmt)
     {
-      invocation.template assign<sizeof(other.invocation.storage), ALIGNOF_OTHER>
-          (&other.invocation.storage, (const vmt_t *)other.invocation.vmt);
+      static_assert(std::is_same<TReturn(TParams...), OTHER_RETURN(OTHER_PARAMS...)>::value, "Must create from same type of delegate");
+      static_assert(sizeof(other.invocation.storage)<=sizeof(invocation.storage));
+      static_assert(ALIGNOF_OTHER<=REQUIRED_ALIGNMENT);
     }
 
     //*************************************************************************
@@ -141,14 +142,15 @@ namespace etl
     // Construct from lambda or functor.
     //*************************************************************************
     template <typename TLambda, typename = etl::enable_if_t<etl::is_class<TLambda>::value, void>>
-    /*cannot constexpr assign from lambda   ETL_CONSTEXPR14*/ delegate(const TLambda& instance): invocation(nullptr, nullptr)
+    ETL_CONSTEXPR14 delegate(const TLambda& instance)
+      : invocation((const vmt_t *)&vmt_wrapper<
+                       &invocation_element::template lambda_call<TLambda>,
+                       &invocation_element::template lambda_copy<TLambda>,
+                       &invocation_element::template lambda_destroy<TLambda>>::vmt)
     {
-      using lambda_vmt=vmt_wrapper<
-        &invocation_element::template lambda_call<TLambda>,
-        &invocation_element::template lambda_copy<TLambda>,
-        &invocation_element::template lambda_destroy<TLambda>
-      >;
-      invocation.template assign<TLambda>(instance, (const vmt_t *)&lambda_vmt::vmt); //convert vmt to fit in our storage to reduce compiler errors
+      static_assert(sizeof(TLambda)<=sizeof(invocation_element::storage.opaque), "Insufficient storage in delegate");
+      static_assert(alignof(TLambda)<=REQUIRED_ALIGNMENT, "Insufficient alignment of delegate");
+      new (&invocation.storage.opaque) TLambda (instance);
     }
 
     //*************************************************************************
@@ -427,9 +429,10 @@ namespace etl
     //*************************************************************************
     /// operator=(delegate)
     //*************************************************************************
-    template <size_t OTHER_STORAGE, size_t OTHER_ALIGNOF>
-    delegate& operator =(const delegate<TReturn(TParams...), OTHER_STORAGE, OTHER_ALIGNOF> &rhs)
+    template <typename OTHER_RETURN, typename... OTHER_PARAMS, size_t OTHER_STORAGE, size_t OTHER_ALIGNOF>
+    delegate& operator =(const delegate<OTHER_RETURN(OTHER_PARAMS...), OTHER_STORAGE, OTHER_ALIGNOF> &rhs)
     {
+      static_assert(std::is_same<TReturn(TParams...), OTHER_RETURN(OTHER_PARAMS...)>::value, "Must assign from same type of delegate");
       invocation.template assign<sizeof(rhs.invocation.storage), OTHER_ALIGNOF>
           (&rhs.invocation.storage, (const vmt_t *)rhs.invocation.vmt); //convert vmt, so we 1) hide some compiler errors 2) allow assignment to bigger storage
       return *this;
@@ -472,6 +475,7 @@ namespace etl
     template <class T, size_t OTHER_SIZE, size_t OTHER_ALIGN>
     ETL_CONSTEXPR14 bool operator != (const delegate<T, OTHER_SIZE, OTHER_ALIGN>& rhs) const
     {
+      static_assert(std::is_same<TReturn(TParams...), T>::value, "Must compare same type of delegate");
       return ((const vmt_t *)rhs.invocation.vmt != invocation.vmt) ||
              (rhs.invocation.storage.object != invocation.storage.object);
     }
@@ -521,10 +525,11 @@ namespace etl
     template <size_t data_size, size_t padding_size>
     struct memory_helper
     {
-      using data_helper=class {
+      using data_helper=struct {
         uint8_t data[data_size];
       };
-      memory_helper(const uint8_t *source): data(*(const data_helper *)source), padding {} {}
+      constexpr memory_helper(): data(), padding {} {}
+      constexpr memory_helper(const uint8_t *source): data(*(const data_helper *)source), padding {} {}
       data_helper data;
       uint8_t padding[padding_size];
     };
@@ -535,11 +540,18 @@ namespace etl
     //*************************************************************************
     struct invocation_element
     {
-      //ETL_CONSTEXPR14 invocation_element(): storage(nullptr) {};
+      ETL_CONSTEXPR14 invocation_element(const vmt_t *vmt): storage(), vmt(vmt)
+      {
+      }
 
       //template <size_t object_size, size_t object_align>
       ETL_CONSTEXPR14 invocation_element(const uint8_t (&source)[sizeof(void *)+ADDITIONAL_STORAGE_SIZE], const vmt_t *vmt):
         storage(source), vmt(vmt)
+      {
+      }
+      template <size_t x1, size_t x2>
+      ETL_CONSTEXPR14 invocation_element(const memory_helper<x1, x2> &source, const vmt_t *vmt):
+        storage(*(const memory_helper<x1+x2, 0> *)&source), vmt(vmt)
       {
       }
       //***********************************************************************
@@ -558,8 +570,6 @@ namespace etl
         static_assert(object_align<=REQUIRED_ALIGNMENT, "Insufficient alignment of delegate");
         if (this->vmt && this->vmt->destroy)
           (this->*(this->vmt->destroy))();
-        //if (sizeof(storage.opaque)>object_size) //some memset fail with size==0
-          //memset(&storage.opaque[object_size], 0xff, sizeof(storage.opaque)-object_size);
         new (storage.opaque) memory_helper<object_size, sizeof(storage.opaque)-object_size>
             ((const uint8_t *)&source);
         if (vmt)
@@ -696,11 +706,14 @@ namespace etl
       {
         constexpr Storage(const void *pointer): object(pointer) {}
         constexpr Storage(const uint8_t (&source)[sizeof(void *)+ADDITIONAL_STORAGE_SIZE]): opaque(source) {}
+        constexpr Storage(const memory_helper<sizeof(void *)+ADDITIONAL_STORAGE_SIZE, 0> &source): _forinitN(source) {}
+        constexpr Storage(): _forinit0() {}
         const void *object;
         uint8_t opaque[sizeof(object)+ADDITIONAL_STORAGE_SIZE];
+        memory_helper<sizeof(void *)+ADDITIONAL_STORAGE_SIZE, 0> _forinitN;
+        memory_helper<0, sizeof(void *)+ADDITIONAL_STORAGE_SIZE> _forinit0;
       } storage;
       const vmt_t *vmt = ETL_NULLPTR;
-      //void (*lambda_destruct)(void *thisptr)  = ETL_NULLPTR;
     };
 
     //*************************************************************************
@@ -709,7 +722,6 @@ namespace etl
     ETL_CONSTEXPR14 delegate(const uint8_t (&object)[sizeof(void *)+ADDITIONAL_STORAGE_SIZE], const vmt_t *vmt)
       : invocation(object, vmt)
     {
-      //invocation.template assign<sizeof(void *), alignof(void *)>(object, vmt);
     }
 
     //*************************************************************************
